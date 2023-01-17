@@ -12,6 +12,23 @@
 #include <net/ethernet.h>
 #include <netinet/tcp.h>
 #include <pcap/pcap.h>
+#include <netinet/ip.h>
+#include <time.h>
+#include <sys/time.h>
+#include <netinet/tcp.h>
+
+
+
+
+struct icmpheader {
+    unsigned char icmp_type; // ICMP message type
+    unsigned char icmp_code; // Error code
+    unsigned short int icmp_chksum; //Checksum for ICMP Header and data
+    unsigned short int icmp_id;     //Used for identifying request
+    unsigned short int icmp_seq;    //Sequence number
+};
+
+
 
 struct ethheader {
   u_char  ether_dhost[ETHER_ADDR_LEN]; /* destination host address */
@@ -34,25 +51,47 @@ struct ipheader {
   struct  in_addr    iph_sourceip; //Source IP address 
   struct  in_addr    iph_destip;   //Destination IP address 
 };
-/*void got_packet(u_char *args, const struct pcap_pkthdr *header, 
-        const u_char *packet)
-{
-   printf("Got a packet\n");
-}*/
 
-void got_packet(u_char *args, const struct pcap_pkthdr *header, 
-                              const u_char *packet)
+struct calculatorPacket {
+    uint32_t unixtime;
+    uint16_t length;
+    uint16_t reserved:3,c_flag:1,s_flag:1,t_flag:1,status:10;
+    uint16_t cache;
+    uint16_t padding;
+};
+
+void got_packet(u_char *args, const struct pcap_pkthdr *header,const u_char *packet)
 {
-  struct ethheader *eth = (struct ethheader *)packet;
+    struct ethheader *eth = (struct ethheader *)packet;
+    struct tcphdr *tcph=(struct tcphdr*)(packet + sizeof(struct ethhdr));
+    const u_char *pointer = (packet + sizeof(*tcph));
+    int index  = 0;
+    const unsigned int length = (header->len - sizeof(*tcph));
+    struct calculatorPacket *app = (struct calculatorPacket *)header;
 
   if (ntohs(eth->ether_type) == 0x0800) { // 0x0800 is IP type
-    struct ipheader * ip = (struct ipheader *)
-                           (packet + sizeof(struct ethheader)); 
+    struct ipheader * ip = (struct ipheader *)(packet + sizeof(struct ethheader));
+    printf("----------------PACKET--------------------\n");
+    printf("   |-From: %s\n", inet_ntoa(ip->iph_sourceip));
+    printf("   |-To: %s\n", inet_ntoa(ip->iph_destip));
+    printf("   |-Source Port      : %u\n",ntohs(tcph->source));
+    printf("   |-Destination Port : %u\n",ntohs(tcph->dest));
+    printf("   |-timestamp: %u %s\n",ntohl(header->ts.tv_usec),ctime((const time_t*)&header->ts.tv_sec));
+    printf("   |-timestamp: %lu %s\n",(uint64_t)(header->ts.tv_sec * 10000+ header->ts.tv_usec),ctime((const time_t*)&header->ts.tv_sec));
+    printf("   |-total length: %u\n",header->len);
+    printf("   |-data: \n");
+    for(index = 0; index  < length; index++ ){
+        printf("%02X  ", pointer[index]&0xff);
+    }
+    printf("\n");
+    printf("   |-type: %04hx\n",eth->ether_type);
+    printf("   |-c_flag: %u\n", app->c_flag);
+    printf("   |-s_flag: %u\n", app->s_flag);
+    printf("   |-cache_control: %u\n", app->cache);
+    printf("   |-status_code: %u\n", app->status);
 
-    printf("       From: %s\n", inet_ntoa(ip->iph_sourceip));  
-    printf("         To: %s\n", inet_ntoa(ip->iph_destip));   
 
-    // determine protocol 
+    // determine protocol
     switch(ip->iph_protocol) {                               
         case IPPROTO_TCP:
             printf("   Protocol: TCP\n");
@@ -69,78 +108,6 @@ void got_packet(u_char *args, const struct pcap_pkthdr *header,
     }
   }
 }
-void print_tcp_packet(const u_char * Buffer, int Size)
-{
-	unsigned short iphdrlen;
-	
-	struct iphdr *iph = (struct iphdr *)( Buffer  + sizeof(struct ethhdr) );
-	iphdrlen = iph->ihl*4;
-	
-	struct tcphdr *tcph=(struct tcphdr*)(Buffer + iphdrlen + sizeof(struct ethhdr));
-			
-	int header_size =  sizeof(struct ethhdr) + iphdrlen + tcph->doff*4;
-	
-	printf("\n\n***********************TCP Packet*************************\n");	
-		
-	//print_ip_header(Buffer,Size);
-		
-	printf("\n");
-	printf("TCP Header\n");
-	printf("   |-Source Port      : %u\n",ntohs(tcph->source));
-	printf("   |-Destination Port : %u\n",ntohs(tcph->dest));
-	printf("   |-Sequence Number    : %u\n",ntohl(tcph->seq));
-	printf("   |-Acknowledge Number : %u\n",ntohl(tcph->ack_seq));
-	printf("   |-Header Length      : %d DWORDS or %d BYTES\n" ,(unsigned int)tcph->doff,(unsigned int)tcph->doff*4);
-	//printf("   |-CWR Flag : %d\n",(unsigned int)tcph->cwr);
-	//printf("   |-ECN Flag : %d\n",(unsigned int)tcph->ece);
-	printf("   |-Urgent Flag          : %d\n",(unsigned int)tcph->urg);
-	printf("   |-Acknowledgement Flag : %d\n",(unsigned int)tcph->ack);
-	printf("   |-Push Flag            : %d\n",(unsigned int)tcph->psh);
-	printf("   |-Reset Flag           : %d\n",(unsigned int)tcph->rst);
-	printf("   |-Synchronise Flag     : %d\n",(unsigned int)tcph->syn);
-	printf("   |-Finish Flag          : %d\n",(unsigned int)tcph->fin);
-	printf("   |-Window         : %d\n",ntohs(tcph->window));
-	printf("   |-Checksum       : %d\n",ntohs(tcph->check));
-	printf("   |-Urgent Pointer : %d\n",tcph->urg_ptr);
-	printf("\n");
-	printf("                        DATA Dump                         ");
-	printf("\n");
-	/*	
-	printf("IP Header\n");
-	PrintData(Buffer,iphdrlen);
-		
-	printf("TCP Header\n");
-	PrintData(Buffer+iphdrlen,tcph->doff*4);
-		
-	printf("Data Payload\n");	
-	PrintData(Buffer + header_size , Size - header_size );
-						*/
-	printf("\n###########################################################");
-}
-
-/*
-add if for the functions for dubugging
-
-get all the info to a file
-*/
-void process_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *buffer)
-{
-	int size = header->len;
-	
-	//Get the IP Header part of this packet , excluding the ethernet header
-	struct iphdr *iph = (struct iphdr*)(buffer + sizeof(struct ethhdr));
-	switch (iph->protocol) //Check the Protocol and do accordingly...
-	{
-		
-		case 6:  //TCP Protocol
-			print_tcp_packet(buffer , size);
-			break;
-		
-		default: //Some Other Protocol like ARP etc.
-			break;
-	}
-}
-
 
 
 int main()
@@ -171,7 +138,7 @@ int main()
   }                             
 
   // Step 3: Capture packets
-  pcap_loop(handle, -1, process_packet, NULL);                
+  pcap_loop(handle, -1, got_packet, NULL);                
 
   pcap_close(handle);   //Close the handle 
   return 0;

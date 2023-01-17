@@ -52,69 +52,58 @@ struct ipheader {
   struct  in_addr    iph_destip;   //Destination IP address 
 };
 
-struct Packet {
+struct Apphdr {
+    uint32_t unixtime;
     uint16_t length;
-    uint16_t reserved:3,c_flag:1,s_flag:1,t_flag:1,status:10;
+    union{
+        uint16_t flags;
+        uint16_t reserved:3,c_flag:1,s_flag:1,t_flag:1,status:10;
+    };
     uint16_t cache;
 };
 
 void got_packet(u_char *args, const struct pcap_pkthdr *header,const u_char *packet)
 {
     FILE *file_pointer;
-    file_pointer = fopen("part1.txt", "a+");
+    file_pointer = fopen("213205230_324239714.txt", "a+");
     if(file_pointer == NULL){
         perror("error in opening file");
         exit(1);
     }
 
     struct ethheader *eth = (struct ethheader *)packet;
-    struct tcphdr *tcph=(struct tcphdr*)(packet + sizeof(struct ethhdr));
+    struct ipheader *iph = (struct ipheader *)(packet + sizeof(struct ethheader));
+    struct tcphdr *tcph = (struct tcphdr *)(packet + sizeof(struct ethheader)) + iph->iph_ihl*4;
+    struct Apphdr *applicationh = (struct Apphdr *)(packet + sizeof(struct ethheader)) + iph->iph_ihl*4 + tcph->th_off*4;
+
+
     const u_char *pointer = (packet + sizeof(*tcph));
     int index  = 0;
     const unsigned int length = (header->len - sizeof(*tcph));
-    struct Packet *app = (struct Packet *)header;
 
-  if (ntohs(eth->ether_type) == 0x0800) { // 0x0800 is IP type
-    struct ipheader * ip = (struct ipheader *)(packet + sizeof(struct ethheader));
-    fprintf(file_pointer,"----------------PACKET--------------------\n");
-    fprintf(file_pointer,"   |-From: %s\n", inet_ntoa(ip->iph_sourceip));
-    fprintf(file_pointer,"   |-To: %s\n", inet_ntoa(ip->iph_destip));
-    fprintf(file_pointer,"   |-Source Port      : %u\n",ntohs(tcph->source));
-    fprintf(file_pointer,"   |-Destination Port : %u\n",ntohs(tcph->dest));
-    fprintf(file_pointer,"   |-timestamp: %u %s\n",ntohl(header->ts.tv_usec),ctime((const time_t*)&header->ts.tv_sec));
-    fprintf(file_pointer,"   |-timestamp: %lu %s\n",(uint64_t)(header->ts.tv_sec * 10000+ header->ts.tv_usec),ctime((const time_t*)&header->ts.tv_sec));
-    fprintf(file_pointer,"   |-total length: %u\n",header->len);
-    fprintf(file_pointer,"   |-data: \n");
-    for(index = 0; index  < length; index++ ){
-        fprintf(file_pointer,"%02X  ", pointer[index]&0xff);
+    if (ntohs(eth->ether_type) == 0x0800) { // 0x0800 is IP type
+        struct ipheader * ip = (struct ipheader *)(packet + sizeof(struct ethheader));
+        fprintf(file_pointer,"----------------PACKET--------------------\n");
+        fprintf(file_pointer,"   |-From: %s\n", inet_ntoa(ip->iph_sourceip));
+        fprintf(file_pointer,"   |-To: %s\n", inet_ntoa(ip->iph_destip));
+        fprintf(file_pointer,"   |-Source Port      : %d\n",ntohs(tcph->th_sport));
+        fprintf(file_pointer,"   |-Destination Port : %d\n",ntohs(tcph->th_dport));
+        fprintf(file_pointer,"   |-Timestamp: %u\n",applicationh->unixtime);
+        fprintf(file_pointer,"   |-Total_length: %u\n",ntohs(applicationh->length));
+        fprintf(file_pointer,"   |-Data: \n");
+        for(index = 0; index  < length; index++ ){
+            fprintf(file_pointer,"%02X  ", pointer[index]&0xff);
+        }
+        fprintf(file_pointer,"\n");
+        fprintf(file_pointer,"   |-c_flag: %u\n", (applicationh->c_flag>>12) &1);
+        fprintf(file_pointer,"   |-s_flag: %u\n", (applicationh->s_flag>>11) &1);
+        fprintf(file_pointer,"   |-c_flag: %u\n", (applicationh->t_flag>>10) &1);
+        fprintf(file_pointer,"   |-status_code: %u\n", applicationh->status);
+        fprintf(file_pointer,"   |-cache_control: %u\n", ntohs(applicationh->cache));
     }
-    fprintf(file_pointer,"\n");
-    fprintf(file_pointer,"   |-type: %04hx\n",eth->ether_type);
-    fprintf(file_pointer,"   |-c_flag: %u\n", app->c_flag);
-    fprintf(file_pointer,"   |-s_flag: %u\n", app->s_flag);
-    fprintf(file_pointer,"   |-cache_control: %u\n", app->cache);
-    fprintf(file_pointer,"   |-status_code: %u\n", app->status);
+    fclose(file_pointer);
 
-    // determine protocol
-    switch(ip->iph_protocol) {                               
-        case IPPROTO_TCP:
-            fprintf(file_pointer,"   Protocol: TCP\n");
-            fclose(file_pointer);
-            return;
-        case IPPROTO_UDP:
-            fprintf(file_pointer,"   Protocol: UDP\n");
-            fclose(file_pointer);
-            return;
-        case IPPROTO_ICMP:
-            fprintf(file_pointer,"   Protocol: ICMP\n");
-            fclose(file_pointer);
-            return;
-        default:
-            fprintf(file_pointer,"   Protocol: others\n");
-            fclose(file_pointer);
-            return;
-    }
-  }
+
 }
 
 

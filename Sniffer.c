@@ -52,58 +52,66 @@ struct ipheader {
   struct  in_addr    iph_destip;   //Destination IP address 
 };
 
-struct calculatorPacket {
-    uint32_t unixtime;
+struct Packet {
     uint16_t length;
     uint16_t reserved:3,c_flag:1,s_flag:1,t_flag:1,status:10;
     uint16_t cache;
-    uint16_t padding;
 };
 
 void got_packet(u_char *args, const struct pcap_pkthdr *header,const u_char *packet)
 {
+    FILE *file_pointer;
+    file_pointer = fopen("part1.txt", "a+");
+    if(file_pointer == NULL){
+        perror("error in opening file");
+        exit(1);
+    }
+
     struct ethheader *eth = (struct ethheader *)packet;
     struct tcphdr *tcph=(struct tcphdr*)(packet + sizeof(struct ethhdr));
     const u_char *pointer = (packet + sizeof(*tcph));
     int index  = 0;
     const unsigned int length = (header->len - sizeof(*tcph));
-    struct calculatorPacket *app = (struct calculatorPacket *)header;
+    struct Packet *app = (struct Packet *)header;
 
   if (ntohs(eth->ether_type) == 0x0800) { // 0x0800 is IP type
     struct ipheader * ip = (struct ipheader *)(packet + sizeof(struct ethheader));
-    printf("----------------PACKET--------------------\n");
-    printf("   |-From: %s\n", inet_ntoa(ip->iph_sourceip));
-    printf("   |-To: %s\n", inet_ntoa(ip->iph_destip));
-    printf("   |-Source Port      : %u\n",ntohs(tcph->source));
-    printf("   |-Destination Port : %u\n",ntohs(tcph->dest));
-    printf("   |-timestamp: %u %s\n",ntohl(header->ts.tv_usec),ctime((const time_t*)&header->ts.tv_sec));
-    printf("   |-timestamp: %lu %s\n",(uint64_t)(header->ts.tv_sec * 10000+ header->ts.tv_usec),ctime((const time_t*)&header->ts.tv_sec));
-    printf("   |-total length: %u\n",header->len);
-    printf("   |-data: \n");
+    fprintf(file_pointer,"----------------PACKET--------------------\n");
+    fprintf(file_pointer,"   |-From: %s\n", inet_ntoa(ip->iph_sourceip));
+    fprintf(file_pointer,"   |-To: %s\n", inet_ntoa(ip->iph_destip));
+    fprintf(file_pointer,"   |-Source Port      : %u\n",ntohs(tcph->source));
+    fprintf(file_pointer,"   |-Destination Port : %u\n",ntohs(tcph->dest));
+    fprintf(file_pointer,"   |-timestamp: %u %s\n",ntohl(header->ts.tv_usec),ctime((const time_t*)&header->ts.tv_sec));
+    fprintf(file_pointer,"   |-timestamp: %lu %s\n",(uint64_t)(header->ts.tv_sec * 10000+ header->ts.tv_usec),ctime((const time_t*)&header->ts.tv_sec));
+    fprintf(file_pointer,"   |-total length: %u\n",header->len);
+    fprintf(file_pointer,"   |-data: \n");
     for(index = 0; index  < length; index++ ){
-        printf("%02X  ", pointer[index]&0xff);
+        fprintf(file_pointer,"%02X  ", pointer[index]&0xff);
     }
-    printf("\n");
-    printf("   |-type: %04hx\n",eth->ether_type);
-    printf("   |-c_flag: %u\n", app->c_flag);
-    printf("   |-s_flag: %u\n", app->s_flag);
-    printf("   |-cache_control: %u\n", app->cache);
-    printf("   |-status_code: %u\n", app->status);
-
+    fprintf(file_pointer,"\n");
+    fprintf(file_pointer,"   |-type: %04hx\n",eth->ether_type);
+    fprintf(file_pointer,"   |-c_flag: %u\n", app->c_flag);
+    fprintf(file_pointer,"   |-s_flag: %u\n", app->s_flag);
+    fprintf(file_pointer,"   |-cache_control: %u\n", app->cache);
+    fprintf(file_pointer,"   |-status_code: %u\n", app->status);
 
     // determine protocol
     switch(ip->iph_protocol) {                               
         case IPPROTO_TCP:
-            printf("   Protocol: TCP\n");
+            fprintf(file_pointer,"   Protocol: TCP\n");
+            fclose(file_pointer);
             return;
         case IPPROTO_UDP:
-            printf("   Protocol: UDP\n");
+            fprintf(file_pointer,"   Protocol: UDP\n");
+            fclose(file_pointer);
             return;
         case IPPROTO_ICMP:
-            printf("   Protocol: ICMP\n");
+            fprintf(file_pointer,"   Protocol: ICMP\n");
+            fclose(file_pointer);
             return;
         default:
-            printf("   Protocol: others\n");
+            fprintf(file_pointer,"   Protocol: others\n");
+            fclose(file_pointer);
             return;
     }
   }

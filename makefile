@@ -13,4 +13,4 @@ Spoofer.o: Spoofer.c
 	gcc -Wall -g -c Spoofer.c
 
 clean:
-	rm -f *.o Sniffer
+	rm -f *.o Sniffer Spoofer part1.txt

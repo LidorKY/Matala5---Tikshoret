@@ -60,6 +60,7 @@ struct Apphdr {
         uint16_t reserved:3,c_flag:1,s_flag:1,t_flag:1,status:10;
     };
     uint16_t cache;
+    uint16_t spacing;
 };
 
 void got_packet(u_char *args, const struct pcap_pkthdr *header,const u_char *packet)
@@ -73,37 +74,35 @@ void got_packet(u_char *args, const struct pcap_pkthdr *header,const u_char *pac
 
     struct ethheader *eth = (struct ethheader *)packet;
     struct ipheader *iph = (struct ipheader *)(packet + sizeof(struct ethheader));
-    struct tcphdr *tcph = (struct tcphdr *)(packet + sizeof(struct ethheader)) + iph->iph_ihl*4;
-    struct Apphdr *applicationh = (struct Apphdr *)(packet + sizeof(struct ethheader)) + iph->iph_ihl*4 + tcph->th_off*4;
+    struct tcphdr *tcph = (struct tcphdr *)(packet + sizeof(struct ethheader) + iph->iph_ihl*4);
+    struct Apphdr *applicationh = (struct Apphdr *)(packet + sizeof(struct ethheader) + iph->iph_ihl*4 + tcph->th_off*4);
+
+    if (tcph->psh != 1){return;}
 
 
-    const u_char *pointer = (packet + sizeof(*tcph));
+    const u_char *pointer = (packet + sizeof(struct ethheader) + iph->iph_ihl*4 + tcph->th_off*4 + 12);
     int index  = 0;
-    const unsigned int length = (header->len - sizeof(*tcph));
+    const unsigned int length = (ntohs(applicationh->length));
 
-    if (ntohs(eth->ether_type) == 0x0800) { // 0x0800 is IP type
-        struct ipheader * ip = (struct ipheader *)(packet + sizeof(struct ethheader));
         fprintf(file_pointer,"----------------PACKET--------------------\n");
-        fprintf(file_pointer,"   |-From: %s\n", inet_ntoa(ip->iph_sourceip));
-        fprintf(file_pointer,"   |-To: %s\n", inet_ntoa(ip->iph_destip));
-        fprintf(file_pointer,"   |-Source Port      : %d\n",ntohs(tcph->th_sport));
-        fprintf(file_pointer,"   |-Destination Port : %d\n",ntohs(tcph->th_dport));
-        fprintf(file_pointer,"   |-Timestamp: %u\n",applicationh->unixtime);
-        fprintf(file_pointer,"   |-Total_length: %u\n",ntohs(applicationh->length));
+        fprintf(file_pointer,"   |-From: %s\n", inet_ntoa(iph->iph_sourceip));
+        fprintf(file_pointer,"   |-To: %s\n", inet_ntoa(iph->iph_destip));
+        fprintf(file_pointer,"   |-Source Port      : %hu\n",ntohs(tcph->th_sport));
+        fprintf(file_pointer,"   |-Destination Port : %hu\n",ntohs(tcph->th_dport));
+        fprintf(file_pointer,"   |-Timestamp: %u\n",ntohl(applicationh->unixtime));
+        fprintf(file_pointer,"   |-Total_length: %hu\n",ntohs(applicationh->length));
         fprintf(file_pointer,"   |-Data: \n");
         for(index = 0; index  < length; index++ ){
             fprintf(file_pointer,"%02X  ", pointer[index]&0xff);
         }
+        applicationh->flags = ntohs((applicationh->flags));
         fprintf(file_pointer,"\n");
-        fprintf(file_pointer,"   |-c_flag: %u\n", (applicationh->c_flag>>12) &1);
-        fprintf(file_pointer,"   |-s_flag: %u\n", (applicationh->s_flag>>11) &1);
-        fprintf(file_pointer,"   |-c_flag: %u\n", (applicationh->t_flag>>10) &1);
-        fprintf(file_pointer,"   |-status_code: %u\n", applicationh->status);
-        fprintf(file_pointer,"   |-cache_control: %u\n", ntohs(applicationh->cache));
-    }
+        fprintf(file_pointer,"   |-c_flag: %hu\n", ((applicationh->flags>>12) &1));
+        fprintf(file_pointer,"   |-s_flag: %hu\n", ((applicationh->flags>>11) &1));
+        fprintf(file_pointer,"   |-t_flag: %hu\n", ((applicationh->flags>>10) &1));
+        fprintf(file_pointer,"   |-status_code: %hu\n", applicationh->status);
+        fprintf(file_pointer,"   |-cache_control: %hu\n", ntohs(applicationh->cache));
     fclose(file_pointer);
-
-
 }
 
 

@@ -19,4 +19,4 @@ partC.o: partC.c
 	gcc -Wall -g -c partC.c
 
 clean:
-	rm -f *.o Sniffer Spoofer 213205230_324239714.txt
+	rm -f *.o Sniffer Spoofer 213205230_324239714.txt partC

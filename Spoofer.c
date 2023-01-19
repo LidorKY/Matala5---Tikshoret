@@ -2,40 +2,9 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <netinet/ip.h>
-
-#include <pcap.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <sys/types.h>
-#include <arpa/inet.h>
-#include <sys/socket.h>
-#include <netinet/ip.h>
-#include <linux/if_packet.h>
-#include <net/ethernet.h>
-#include <netinet/tcp.h>
-#include <pcap/pcap.h>
-#include <netinet/ip.h>
-#include <time.h>
-
-
-#include <pcap.h>
-#include <stdio.h>
-#include <arpa/inet.h>
-#include <string.h>
-#include <sys/socket.h>
-#include <netinet/ip.h>
-
-/* UDP Header */
-struct udpheader
-{
-    u_int16_t udp_sport;           /* source port */
-    u_int16_t udp_dport;           /* destination port */
-    u_int16_t udp_ulen;            /* udp length */
-    u_int16_t udp_sum;             /* udp checksum */
-};
-
 
 /* IP Header */
 struct ipheader {
@@ -113,36 +82,43 @@ unsigned short in_cksum (unsigned short *buf, int length)
 }
 
 int main() {
-    char buffer[1500];
+    ////////////////////////////////////////////////////////////////////////////////
+    /* gets the new IP we want to spoof */
+    printf("please enter fake IP for the source IP: \n");
+    char str1[16] = {0};
+    scanf("%s", str1);
 
-    memset(buffer, 0, 1500);
+    /* gets the IP we want to sent the packet to */
+    printf("please enter Destination IP: \n");
+    char str2[16] = {0};
+    scanf("%s", str2);
+    ////////////////////////////////////////////////////////////////////////////////
 
+
+    char buffer[1500];//buffer for the meassage
+    memset(buffer, 0, 1500);// clearing the buffer
     /*********************************************************
        Step 1: Fill in the ICMP header.
      ********************************************************/
     struct icmpheader *icmp = (struct icmpheader *)(buffer + sizeof(struct ipheader));
     icmp->icmp_type = 8; //ICMP Type: 8 is request, 0 is reply.
-
     // Calculate the checksum for integrity
-    icmp->icmp_chksum = 0;
-    icmp->icmp_chksum = in_cksum((unsigned short *)icmp,sizeof(struct icmpheader));
-
+    icmp->icmp_chksum = 0;//clear the checksum
+    icmp->icmp_chksum = in_cksum((unsigned short *)icmp,sizeof(struct icmpheader)); //calculate the checksum
     /*********************************************************
        Step 2: Fill in the IP header.
      ********************************************************/
     struct ipheader *ip = (struct ipheader *) buffer;
-    ip->iph_ver = 4;
-    ip->iph_ihl = 5;
-    ip->iph_ttl = 20;
-    ip->iph_sourceip.s_addr = inet_addr("1.2.3.4");
-    ip->iph_destip.s_addr = inet_addr("10.0.2.15");
-    ip->iph_protocol = IPPROTO_ICMP;
-    ip->iph_len = htons(sizeof(struct ipheader) + sizeof(struct icmpheader));
-
+    ip->iph_ver = 4; //IP version
+    ip->iph_ihl = 5; //IP header length
+    ip->iph_ttl = 20; //Time to Live
+    ip->iph_sourceip.s_addr = inet_addr(str1);//insert the fake IP
+    ip->iph_destip.s_addr = inet_addr(str2);//insert destination IP
+    ip->iph_protocol = IPPROTO_ICMP;//Protocol type
+    ip->iph_len = htons(sizeof(struct ipheader) + sizeof(struct icmpheader));//IP Packet length (data + header)
     /*********************************************************
        Step 3: Finally, send the spoofed packet
      ********************************************************/
-    send_raw_ip_packet (ip);
-
+    send_raw_ip_packet (ip);//function that sends a raw IP packet
     return 0;
 }

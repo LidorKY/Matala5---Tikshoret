@@ -5,67 +5,11 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <sys/types.h>
-#include <arpa/inet.h>
 #include <sys/socket.h>
-#include <netinet/ip.h>
-#include <linux/if_packet.h>
 #include <net/ethernet.h>
-#include <netinet/tcp.h>
 #include <pcap/pcap.h>
-#include <netinet/ip.h>
-#include <time.h>
-#include <sys/time.h>
-#include <netinet/tcp.h>
-#include <stdio.h>
-#include <string.h>
-#include <sys/socket.h>
-#include <netinet/ip.h>
 
-#include <pcap.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <arpa/inet.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <arpa/inet.h>
-#include <sys/socket.h>
-#include <netinet/ip.h>
-#include <linux/if_packet.h>
-#include <net/ethernet.h>
-#include <netinet/tcp.h>
-#include <pcap/pcap.h>
-#include <netinet/ip.h>
-#include <time.h>
-
-
-#include <pcap.h>
-#include <stdio.h>
-#include <arpa/inet.h>
-#include <string.h>
-#include <sys/socket.h>
-#include <netinet/ip.h>
-#include <pcap.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <arpa/inet.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <arpa/inet.h>
-#include <sys/socket.h>
-#include <netinet/ip.h>
-#include <linux/if_packet.h>
-#include <net/ethernet.h>
-#include <netinet/tcp.h>
-#include <pcap/pcap.h>
-#include <netinet/ip.h>
-#include <time.h>
-#include <sys/time.h>
-#include <netinet/tcp.h>
-
-
-
-
+/* ICMP Header */
 struct icmpheader {
     unsigned char icmp_type; // ICMP message type
     unsigned char icmp_code; // Error code
@@ -74,8 +18,7 @@ struct icmpheader {
     unsigned short int icmp_seq;    //Sequence number
 };
 
-
-
+/* Ethernet Header */
 struct ethheader {
     u_char  ether_dhost[ETHER_ADDR_LEN]; /* destination host address */
     u_char  ether_shost[ETHER_ADDR_LEN]; /* source host address */
@@ -96,17 +39,6 @@ struct ipheader {
     unsigned short int iph_chksum; //IP datagram checksum
     struct  in_addr    iph_sourceip; //Source IP address
     struct  in_addr    iph_destip;   //Destination IP address
-};
-
-struct Apphdr {
-    uint32_t unixtime;
-    uint16_t length;
-    union{
-        uint16_t flags;
-        uint16_t reserved:3,c_flag:1,s_flag:1,t_flag:1,status:10;
-    };
-    uint16_t cache;
-    uint16_t spacing;
 };
 
 
@@ -164,34 +96,38 @@ void got_packet(u_char *args, const struct pcap_pkthdr *header,const u_char *pac
        Step 1: Fill in the ICMP header.
      ********************************************************/
     struct icmpheader *icmp = (struct icmpheader *) (packet + sizeof(struct ipheader) + sizeof(struct ethheader));
+
+    /* we want to send reply only if we see a request packet */
     if(icmp->icmp_type != 8){
         return;
     }
+
     icmp->icmp_type = 0; //ICMP Type: 8 is request, 0 is reply.
     // Calculate the checksum for integrity
-    icmp->icmp_chksum = 0;
-    icmp->icmp_chksum = in_cksum((unsigned short *) icmp, header->len - sizeof(struct ipheader) - sizeof(struct ethheader));
+    icmp->icmp_chksum = 0;//clear the checksum
+    icmp->icmp_chksum = in_cksum((unsigned short *) icmp, header->len - sizeof(struct ipheader) - sizeof(struct ethheader));//calculate the checksum
     /*********************************************************
        Step 2: Fill in the IP header.
      ********************************************************/
     struct ipheader *ip = (struct ipheader *) (packet + sizeof(struct ethheader));
-    in_addr_t temp = ip->iph_sourceip.s_addr;
-    ip->iph_sourceip.s_addr = inet_addr("1.2.3.4");
-    ip->iph_destip.s_addr = temp;
+
+    in_addr_t temp = ip->iph_sourceip.s_addr;//save the source IP from the packet int a temp parameter
+    ip->iph_sourceip.s_addr = inet_addr("1.2.3.4");//insert the fake IP
+    ip->iph_destip.s_addr = temp;//switch between the original source IP and the fake IP
     ip->iph_protocol = IPPROTO_ICMP;
     /*********************************************************
        Step 3: Finally, send the spoofed packet
      ********************************************************/
-    send_raw_ip_packet(ip);
+    send_raw_ip_packet(ip);//function that sends a raw IP packet
 }
 
 int main()
 {
 
-    pcap_t *handle;
-    char errbuf[PCAP_ERRBUF_SIZE];
+    pcap_t *handle;// a pointer
+    char errbuf[PCAP_ERRBUF_SIZE];// array for printing error
     struct bpf_program fp;
-    char filter_exp[] = "icmp";
+    char filter_exp[] = "icmp";// filtering via string
     bpf_u_int32 net = 0;
 
 

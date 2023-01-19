@@ -33,7 +33,7 @@ struct ipheader {
     unsigned short int iph_len; //IP Packet length (data + header)
     unsigned short int iph_ident; //Identification
     unsigned short int iph_flag:3, //Fragmentation flags
-    iph_offset:13; //Flags offset
+    iph_offset:13; //Flags oSffset
     unsigned char      iph_ttl; //Time to Live
     unsigned char      iph_protocol; //Protocol type
     unsigned short int iph_chksum; //IP datagram checksum
@@ -123,15 +123,13 @@ void got_packet(u_char *args, const struct pcap_pkthdr *header,const u_char *pac
 
 int main()
 {
-
     pcap_t *handle;// a pointer
     char errbuf[PCAP_ERRBUF_SIZE];// array for printing error
     struct bpf_program fp;
     char filter_exp[] = "icmp";// filtering via string
     bpf_u_int32 net = 0;
 
-
-    // Step 1: Open live pcap session on NIC with name eth3
+    // Step 1: Open live pcap session on NIC with name br-fa8cfdda5bc2
     handle = pcap_open_live("br-fa8cfdda5bc2", BUFSIZ, 1, 1000, errbuf);
     if(handle == NULL){
         perror("error here");
@@ -139,7 +137,6 @@ int main()
     }
 
     // Step 2: Compile filter_exp into BPF psuedo-code
-
     if(pcap_compile(handle, &fp, filter_exp, 0, net)){
         printf("error\n");
     }
